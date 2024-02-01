@@ -5,6 +5,7 @@ const cookieparser =  require('cookie-parser')
 const mongodb = require('./utils/mongoose.connect')
 const port = process.env.PORT || 5000
 const userRouter = require('./routes/user.route')
+const postRouter = require('./routes/post.route')
 
 // connect mongodb
 mongodb()
@@ -16,6 +17,8 @@ app.use(cookieparser())
 
 //routes
 app.use('/api/user', userRouter)
+app.use('/api/post' , postRouter)
+
 
 app.listen(port , () => {
     console.log(`App is live on port ${port}`)
