@@ -1,5 +1,6 @@
 const User = require('../models/user.model')
 const generateToken = require('../utils/generate.token')
+const cloudinary = require('cloudinary').v2
 const bcrypt = require('bcryptjs')
 
 const signupUser = async (req, res) => {
@@ -29,7 +30,8 @@ const signupUser = async (req, res) => {
                 name: newUser.name,
                 id: newUser._id,
                 email: newUser.email,
-                username: newUser.username
+                username: newUser.username,
+                success: 'Signup Successfully'
             })
         } else {
             res.status(400).json({ message: "Userdata is invalid" })
@@ -58,7 +60,8 @@ const loginUser = async (req, res) => {
             name: user.name,
             username: user.username,
             email: user.email,
-            id: user._id
+            id: user._id,
+            success: "Login successfull"
         })
 
     } catch (err) {
@@ -70,7 +73,7 @@ const loginUser = async (req, res) => {
 const logoutUser = async (req, res) => {
     try {
         res.cookie("jwt", "", { maxAge: 1 })
-        res.status(201).json({ message: 'You logout successfully' })
+        res.status(201).json({ success: 'You logout successfully' })
     } catch (err) {
         res.status(500).json({ message: err.message })
         console.log("Error in logout", err.message)
@@ -99,12 +102,12 @@ const followUnfollowUser = async (req, res) => {
             //unfollow
             await User.findByIdAndUpdate(req.user._id, { $pull: { following: id } })
             await User.findByIdAndUpdate(id, { $pull: { followers: req.user._id } })
-            res.status(200).json({ message: "User unfollowed successfully" })
+            res.status(200).json({ success: "User unfollowed successfully" })
         } else {
             // follow
             await User.findByIdAndUpdate(req.user._id, { $push: { following: id } })
             await User.findByIdAndUpdate(id, { $push: { followers: req.user_id } })
-            res.status(200).json({ message: "User followed successfully" })
+            res.status(200).json({ success: "User followed successfully" })
         }
 
 
@@ -115,21 +118,30 @@ const followUnfollowUser = async (req, res) => {
 }
 
 const upadateUserprofile = async (req, res) => {
-    const {id} = req.params;
-    const {name , username , bio , email , password , profilePic}  = req.body;
+    const { id } = req.params;
+    const { name, username, bio, email, password } = req.body;
+    let { profilePic } = req.body;
     try {
         let user = await User.findById(req.user._id)
 
-        if (!user) return res.status(401).json({ message: "User not found" })
 
-        if( id  !== user._id) {
-          return res.status(400).json({message : "UnAuthorised user"})
+        if (!user) return res.status(404).json({ message: "User not found" })
+
+        if (id !== req.user._id.toString()) {
+            return res.status(400).json({ message: "UnAuthorised user" })
         }
 
-        if(password) {
+        if (password) {
             const salt = await bcrypt.genSalt(10);
-            const hashpassword = await bcrypt.hash(password , salt)
+            const hashpassword = await bcrypt.hash(password, salt)
             user.password = hashpassword;
+        }
+
+        if (req.file) {
+
+            const profilePicPath = req.file.path;
+            const upload = await cloudinary.uploader.upload(profilePicPath)
+            profilePic = upload.secure_url;
         }
 
         user.name = name || user.name
@@ -140,7 +152,15 @@ const upadateUserprofile = async (req, res) => {
 
         user = await user.save()
 
-        res.status(200).json({message : "User upadated successfully"})
+        res.status(200).json({
+            name: user.name,
+            username: user.username,
+            email: user.email,
+            id: user._id,
+            bio : user.bio,
+            profilePic : profilePic || user.profilePic,
+            password : user.password
+        })
 
     } catch (err) {
         res.status(500).json({ message: err.message })
@@ -149,21 +169,21 @@ const upadateUserprofile = async (req, res) => {
 
 }
 
-const getProfile = async (req , res) => {
-    const {id} = req.params;
+const getProfile = async (req, res) => {
+    const { id } = req.params;
     try {
-    const user = await User.findById(id).select("-password")
-    if(!user) {
-        return res.status(400).json({message : "User is not found"})
-    }
+        const user = await User.findById(id).select("-password")
+        if (!user) {
+            return res.status(400).json({ message: "User is not found" })
+        }
 
-    res.status(200).json(user)
-        
+        res.status(200).json(user)
+
     } catch (err) {
-        res.status(500).json({message : err.message})
-        console.log("Error in gerProfile" , err.message)
+        res.status(500).json({ message: err.message })
+        console.log("Error in gerProfile", err.message)
     }
 
 }
 
-module.exports = { signupUser, loginUser, logoutUser, followUnfollowUser, upadateUserprofile , getProfile }
+module.exports = { signupUser, loginUser, logoutUser, followUnfollowUser, upadateUserprofile, getProfile }
