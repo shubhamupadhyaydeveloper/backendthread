@@ -1,3 +1,4 @@
+const Post = require('../models/post.model')
 const User = require('../models/user.model')
 const generateToken = require('../utils/generate.token')
 const cloudinary = require('cloudinary').v2
@@ -61,6 +62,9 @@ const loginUser = async (req, res) => {
             username: user.username,
             email: user.email,
             id: user._id,
+            profilePic: user.profilePic,
+            bio: user.bio,
+            followers: user.followers,
             success: "Login successfull"
         })
 
@@ -106,7 +110,7 @@ const followUnfollowUser = async (req, res) => {
         } else {
             // follow
             await User.findByIdAndUpdate(req.user._id, { $push: { following: id } })
-            await User.findByIdAndUpdate(id, { $push: { followers: req.user_id } })
+            await User.findByIdAndUpdate(id, { $push: { followers: req.user._id } })
             res.status(200).json({ success: "User followed successfully" })
         }
 
@@ -124,7 +128,6 @@ const upadateUserprofile = async (req, res) => {
     try {
         let user = await User.findById(req.user._id)
 
-
         if (!user) return res.status(404).json({ message: "User not found" })
 
         if (id !== req.user._id.toString()) {
@@ -138,17 +141,16 @@ const upadateUserprofile = async (req, res) => {
         }
 
         if (req.file) {
-
             const profilePicPath = req.file.path;
             const upload = await cloudinary.uploader.upload(profilePicPath)
-            profilePic = upload.secure_url;
+            user.profilePic = upload.secure_url;
         }
 
         user.name = name || user.name
         user.username = username || user.username
         user.bio = bio || user.bio
         user.email = email || user.email
-        user.profilePic = profilePic || user.profilePic
+        user.profilePic = user.profilePic
 
         user = await user.save()
 
@@ -157,9 +159,9 @@ const upadateUserprofile = async (req, res) => {
             username: user.username,
             email: user.email,
             id: user._id,
-            bio : user.bio,
-            profilePic : profilePic || user.profilePic,
-            password : user.password
+            bio: user.bio,
+            profilePic: profilePic || user.profilePic,
+            password: user.password
         })
 
     } catch (err) {
@@ -170,11 +172,11 @@ const upadateUserprofile = async (req, res) => {
 }
 
 const getProfile = async (req, res) => {
-    const { id } = req.params;
+    const { query } = req.params;
     try {
-        const user = await User.findById(id).select("-password")
+        const user = await User.findOne({ username: query }).select("-password").select("-updatedAt");
         if (!user) {
-            return res.status(400).json({ message: "User is not found" })
+            return res.status(404).json({ message: "User is not found" })
         }
 
         res.status(200).json(user)
@@ -186,4 +188,40 @@ const getProfile = async (req, res) => {
 
 }
 
-module.exports = { signupUser, loginUser, logoutUser, followUnfollowUser, upadateUserprofile, getProfile }
+const getFeed = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId)
+
+        if (!user) return res.status(404).json({ message: "User is not found" })
+
+        const following = user.following
+
+        if (following) {
+            const feedPost = await Post.find({ postedBy: { $in: following } }).sort({ createdAt: -1 });
+            res.status(200).json(feedPost)
+        } else {
+            return res.status(404).json({ error: "Follow Someone for feed" })
+        }
+
+    } catch (err) {
+        res.status(500).json({ message: err.message })
+        console.log("Error in getFeed", err.message)
+    }
+}
+
+const recommendedUser = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const user = await User.findById(userId)
+        if(!user) return res.status(404).json({message: "User not found"})
+        const fetchUser = await User.find({_id : {$ne : userId}})
+
+        res.status(200).json(fetchUser);
+    } catch (err) {
+        res.status(500).json({ message: err.message });
+        console.log("Error in Recommended User", err.message);
+    }
+};
+
+module.exports = { signupUser, loginUser, logoutUser, followUnfollowUser, upadateUserprofile, getProfile, getFeed , recommendedUser }
