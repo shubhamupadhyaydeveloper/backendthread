@@ -36,7 +36,7 @@ const schema = new mongoose.Schema({
             type : String,
         }
     }]
-}, {timeseries : true})
+}, {timestamps : true})
 
 const Post = mongoose.model('Post', schema)
 

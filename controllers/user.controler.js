@@ -1,3 +1,4 @@
+const { default: mongoose } = require('mongoose')
 const Post = require('../models/post.model')
 const User = require('../models/user.model')
 const generateToken = require('../utils/generate.token')
@@ -173,19 +174,23 @@ const upadateUserprofile = async (req, res) => {
 
 const getProfile = async (req, res) => {
     const { query } = req.params;
-    try {
-        const user = await User.findOne({ username: query }).select("-password").select("-updatedAt");
-        if (!user) {
-            return res.status(404).json({ message: "User is not found" })
-        }
 
-        res.status(200).json(user)
+	try {
+		let user;
 
-    } catch (err) {
-        res.status(500).json({ message: err.message })
-        console.log("Error in gerProfile", err.message)
-    }
+		if (mongoose.Types.ObjectId.isValid(query)) {
+			user = await User.findOne({ _id: query }).select("-password").select("-updatedAt");
+		} else {
+			user = await User.findOne({ username: query }).select("-password").select("-updatedAt");
+		}
 
+		if (!user) return res.status(404).json({ error: "User not found" });
+
+		res.status(200).json(user);
+	} catch (err) {
+		res.status(500).json({ error: err.message });
+		console.log("Error in getUserProfile: ", err.message);
+	}
 }
 
 const getFeed = async (req, res) => {
@@ -224,4 +229,19 @@ const recommendedUser = async (req, res) => {
     }
 };
 
-module.exports = { signupUser, loginUser, logoutUser, followUnfollowUser, upadateUserprofile, getProfile, getFeed , recommendedUser }
+const getUserPost = async (req, res) => {
+    const { username } = req.params;
+    try {
+      const user = await User.findOne({username});
+      if (!user) return res.status(404).json({ message: "User not found" });
+ 
+      const posts = await Post.find({ postedBy: user._id })
+      res.status(200).json(posts);
+    } catch (err) {
+       res.status(500).json({ message: err.message });
+       console.log("Error in getUserPost", err.message);
+    }
+ };
+ 
+ 
+module.exports = { getUserPost, signupUser, loginUser, logoutUser, followUnfollowUser, upadateUserprofile, getProfile, getFeed , recommendedUser }
